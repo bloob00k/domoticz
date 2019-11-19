@@ -1,5 +1,5 @@
 """
-<plugin key="Wiser" name="Drayton Wiser" author="bluebook" version="1.0.0" externallink="https://wiser.draytoncontrols.co.uk/">
+<plugin key="Wiser" name="Drayton Wiser" author="bluebook" version="1.0.0" externallink="https://wiser.draytoncontrols.co.uk/" wikilink="https://github.com/bloob00k/domoticz/wiki">
     <description>
         <h2>Drayton Wiser Plugin</h2><br/>
         For each room you have configured in your system, up to three devices will be created by the plugin:
@@ -104,40 +104,42 @@ class BasePlugin:
                 self.Units[str(DevID)] = unit
                 Domoticz.Log("Created device " + r['Name'] + ' thermostat')
 
-        for r in info['Room']:
-            DevID = 4096 + r['id']
-            if str(DevID) not in self.Units:
-                unit = self.getNextUnit()
-                Domoticz.Device(Name=r['Name'] + ' Demand',  Unit=unit, DeviceID = str(DevID), Type=243, Subtype=6).Create()
-                self.Units[str(DevID)] = unit
-                Domoticz.Log("Created device " + r['Name'] + ' Demand')
+                DevID = 4096 + r['id']
+                if str(DevID) not in self.Units:
+                    unit = self.getNextUnit()
+                    Domoticz.Device(Name=r['Name'] + ' Demand',  Unit=unit, DeviceID = str(DevID), Type=243, Subtype=6).Create()
+                    self.Units[str(DevID)] = unit
+                    Domoticz.Log("Created device " + r['Name'] + ' Demand')
 
-        for h in info['HotWater']:
-            DevID = 512 + h['id']
-            if str(DevID) not in self.Units:
-                # All images available by JSON API call "/json.htm?type=custom_light_icons"
-                unit = self.getNextUnit()
-                Domoticz.Device(Name='Hot Water', Unit=unit, DeviceID = str(DevID), TypeName = "Switch", Subtype = 0, Image = 11).Create()
-                self.Units[str(DevID)] = unit
-                Domoticz.Log("Created device Hot Water")
+        if 'HotWater' in info:
+            for h in info['HotWater']:
+                DevID = 512 + h['id']
+                if str(DevID) not in self.Units:
+                    # All images available by JSON API call "/json.htm?type=custom_light_icons"
+                    unit = self.getNextUnit()
+                    Domoticz.Device(Name='Hot Water', Unit=unit, DeviceID = str(DevID), TypeName = "Switch", Subtype = 0, Image = 11).Create()
+                    self.Units[str(DevID)] = unit
+                    Domoticz.Log("Created device Hot Water")
 
-        for p in info['SmartPlug']:
-            DevID = 1024 + p['id']
-            if str(DevID) not in self.Units:
-                # All images available by JSON API call "/json.htm?type=custom_light_icons"
-                unit = self.getNextUnit()
-                Domoticz.Device(Name=p['Name'], Unit=unit, DeviceID = str(DevID), TypeName = "Switch", Subtype = 0, Image = 1).Create()
-                self.Units[str(DevID)] = unit
-                Domoticz.Log("Created device " + p['Name'])
+        if 'SmartPlug' in info:
+            for p in info['SmartPlug']:
+                DevID = 1024 + p['id']
+                if str(DevID) not in self.Units:
+                    # All images available by JSON API call "/json.htm?type=custom_light_icons"
+                    unit = self.getNextUnit()
+                    Domoticz.Device(Name=p['Name'], Unit=unit, DeviceID = str(DevID), TypeName = "Switch", Subtype = 0, Image = 1).Create()
+                    self.Units[str(DevID)] = unit
+                    Domoticz.Log("Created device " + p['Name'])
 
-        for b in info['HeatingChannel']:
-            DevID = 2048 + b['id']
-            if str(DevID) not in self.Units:
-                # All images available by JSON API call "/json.htm?type=custom_light_icons"
-                unit = self.getNextUnit()
-                Domoticz.Device(Name=b['Name'], Unit=unit, DeviceID = str(DevID), TypeName = "Switch", Subtype = 0, Image = 15).Create()
-                self.Units[str(DevID)] = unit
-                Domoticz.Log("Created device " + b['Name'])
+        if 'HeatingChannel' in info:
+            for b in info['HeatingChannel']:
+                DevID = 2048 + b['id']
+                if str(DevID) not in self.Units:
+                    # All images available by JSON API call "/json.htm?type=custom_light_icons"
+                    unit = self.getNextUnit()
+                    Domoticz.Device(Name=b['Name'], Unit=unit, DeviceID = str(DevID), TypeName = "Switch", Subtype = 0, Image = 15).Create()
+                    self.Units[str(DevID)] = unit
+                    Domoticz.Log("Created device " + b['Name'])
 
     def updateRoom(self, Room, RoomStats):
         sValue = ""
@@ -228,18 +230,21 @@ class BasePlugin:
             Devices[Unit].Touch()
 
     def updateDevices(self, info):
-        for r in info['Room']:
-            self.updateRoom(r, info['RoomStat'])
+        if 'Room' in info:
+            for r in info['Room']:
+                self.updateRoom(r, info['RoomStat'])
 
-        for h in info['HotWater']:
-            self.updateHotWater(h)
+        if 'HotWater' in info:
+            for h in info['HotWater']:
+                self.updateHotWater(h)
 
         if 'SmartPlug' in info:
             for s in info['SmartPlug']:
                 self.updateSmartPlug(s)
 
-        for b in info['HeatingChannel']:
-            self.updateBoiler(b)
+        if 'HeatingChannel' in info:
+            for b in info['HeatingChannel']:
+                self.updateBoiler(b)
 
     def apiPatch(self, Connection, path, data):
         try:
