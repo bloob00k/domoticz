@@ -84,6 +84,14 @@ class BasePlugin:
 
 
     def addDevices(self, info):
+        DevID = 'systemAway'
+        if DevID not in self.Units:
+            unit = self.getNextUnit()
+            Domoticz.Device(Name = 'Away Mode',  Unit = unit, DeviceID = DevID, TypeName = 'Switch', Subtype = 0, Image = 9).Create()
+            self.Units[DevID] = unit
+            Domoticz.Log("Created device " + 'Away Mode')
+
+
         for r in info['Room']:
             # For rooms, thermostat device id = room['id']
             DevID = r['id']
@@ -229,7 +237,23 @@ class BasePlugin:
         else:
             Devices[Unit].Touch()
 
+    def updateSystem(self, System):
+        if 'OverrideType' in System and System['OverrideType'] == 'Away':
+            nValue = 1
+        else:
+            nValue = 0
+
+        Unit = self.Units['systemAway']
+
+        if Devices[Unit].nValue != nValue:
+            Devices[Unit].Update(nValue=nValue, sValue='', TimedOut=0)
+        else:
+            Devices[Unit].Touch()
+
+
     def updateDevices(self, info):
+        self.updateSystem(info['System'])
+
         if 'Room' in info:
             for r in info['Room']:
                 self.updateRoom(r, info['RoomStat'])
@@ -305,30 +329,49 @@ class BasePlugin:
 
         Domoticz.Debug("Payload: " + json.dumps(payload))
 
-        self.apiPatch(Connection, path, json.dumps(payload))
+        self.apiPatch2(Connection, path, json.dumps(payload))
 
 
+    def switchAway(self, Connection, SwitchOn):
+        payload = {
+            "Type": 'Away' if SwitchOn else 'None'
+        }
 
+        path = 'System/RequestOverride'
+
+        Domoticz.Debug("Payload: " + json.dumps(payload))
+
+        self.apiPatch2(Connection, path, json.dumps(payload))
 
     def doCommand(self, Connection):
         Domoticz.Debug("doCommand: " + Connection.Name)
         Domoticz.Debug("Command " + self.NextCommand['Command'])
-        DeviceID = int(Devices[self.NextCommand['Unit']].DeviceID)
 
-        if DeviceID < 256:
-            Room = DeviceID
-        elif DeviceID < 512:
-            Thermostat = DeviceID - 256
-            Domoticz.Debug('"%s" on thermostat ID %d to %.1f' % (self.NextCommand['Command'], Thermostat, self.NextCommand['Level']))
-            self.overrideSetpoint(Connection, Thermostat, self.NextCommand['Level'])
-        elif DeviceID < 1024:
-            HotWaterSystem = DeviceID - 512
-            Domoticz.Debug('"%s" on hot water ID %d' % (self.NextCommand['Command'], HotWaterSystem))
-            self.switchHotWater(Connection, HotWaterSystem, self.NextCommand['Command'].upper() == 'ON')
-        elif DeviceID < 2048:
-            SmartPlug = DeviceID - 1024
-            Domoticz.Debug('"%s" on smart plug ID %d' % (self.NextCommand['Command'], SmartPlug))
-            self.switchSmartPlug(Connection, SmartPlug, self.NextCommand['Command'].upper() == 'ON')
+        DeviceID = Devices[self.NextCommand['Unit']].DeviceID
+
+        # This is a bit ugly.  If I had my time again...
+        if DeviceID.isdigit():
+            DeviceID = int(Devices[self.NextCommand['Unit']].DeviceID)
+
+            if DeviceID < 256:
+                Room = DeviceID
+            elif DeviceID < 512:
+                Thermostat = DeviceID - 256
+                Domoticz.Debug('"%s" on thermostat ID %d to %.1f' % (self.NextCommand['Command'], Thermostat, self.NextCommand['Level']))
+                self.overrideSetpoint(Connection, Thermostat, self.NextCommand['Level'])
+            elif DeviceID < 1024:
+                HotWaterSystem = DeviceID - 512
+                Domoticz.Debug('"%s" on hot water ID %d' % (self.NextCommand['Command'], HotWaterSystem))
+                self.switchHotWater(Connection, HotWaterSystem, self.NextCommand['Command'].upper() == 'ON')
+            elif DeviceID < 2048:
+                SmartPlug = DeviceID - 1024
+                Domoticz.Debug('"%s" on smart plug ID %d' % (self.NextCommand['Command'], SmartPlug))
+                self.switchSmartPlug(Connection, SmartPlug, self.NextCommand['Command'].upper() == 'ON')
+        elif DeviceID == 'systemAway':
+            Domoticz.Debug('"%s" on Away mode' % (self.NextCommand['Command']))
+            self.switchAway(Connection, self.NextCommand['Command'].upper() == 'ON')
+        else:
+            Domoticz.Error('Command for unrecognised Device ID "%s", unit "%d"' % (DeviceID, self.NextCommand['Unit']))
 
         # Force status update ASAP, to reflect any changes we have just made.
         self.WaitCount = 0
