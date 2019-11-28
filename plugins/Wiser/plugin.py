@@ -72,7 +72,8 @@ class BasePlugin:
         self.WaitCount = self.UpdateInterval / 10
         self.Units = {}
         self.MissCount = {}
-        self.NextCommand = {}
+        self.NextCommand = { 'Command': '__NONE__' }
+        self.Commands = []
         return
 
     def getNextUnit(self):
@@ -274,7 +275,7 @@ class BasePlugin:
         try:
             sendData = { 'Verb' : 'PATCH',
                          'URL'  : '/data/domain/' + path,
-                         'Headers' : { 'SECRET': Parameters["Mode1"] },
+                         'Headers' : { 'SECRET': Parameters["Mode1"], "Connection": "keep-alive" },
                          'Data' : data
                 }
 
@@ -287,7 +288,7 @@ class BasePlugin:
         try:
             sendData = { 'Verb' : 'PATCH',
                          'URL'  : '/data/v2/domain/' + path,
-                         'Headers' : { 'SECRET': Parameters["Mode1"] },
+                         'Headers' : { 'SECRET': Parameters["Mode1"], "Connection": "keep-alive" },
                          'Data' : data
                 }
 
@@ -343,39 +344,43 @@ class BasePlugin:
 
         self.apiPatch2(Connection, path, json.dumps(payload))
 
-    def doCommand(self, Connection):
+    def doCommand(self, Connection, Command, Unit, Level):
         Domoticz.Debug("doCommand: " + Connection.Name)
-        Domoticz.Debug("Command " + self.NextCommand['Command'])
+        Domoticz.Debug("Command " + Command)
 
-        DeviceID = Devices[self.NextCommand['Unit']].DeviceID
+        DeviceID = Devices[Unit].DeviceID
 
         # This is a bit ugly.  If I had my time again...
         if DeviceID.isdigit():
-            DeviceID = int(Devices[self.NextCommand['Unit']].DeviceID)
+            DeviceID = int(DeviceID)
 
             if DeviceID < 256:
                 Room = DeviceID
             elif DeviceID < 512:
                 Thermostat = DeviceID - 256
-                Domoticz.Debug('"%s" on thermostat ID %d to %.1f' % (self.NextCommand['Command'], Thermostat, self.NextCommand['Level']))
-                self.overrideSetpoint(Connection, Thermostat, self.NextCommand['Level'])
+                Domoticz.Debug('"%s" on thermostat ID %d to %.1f' % (Command, Thermostat, Level))
+                self.overrideSetpoint(Connection, Thermostat, Level)
             elif DeviceID < 1024:
                 HotWaterSystem = DeviceID - 512
-                Domoticz.Debug('"%s" on hot water ID %d' % (self.NextCommand['Command'], HotWaterSystem))
-                self.switchHotWater(Connection, HotWaterSystem, self.NextCommand['Command'].upper() == 'ON')
+                Domoticz.Debug('"%s" on hot water ID %d' % (Command, HotWaterSystem))
+                self.switchHotWater(Connection, HotWaterSystem, Command.upper() == 'ON')
             elif DeviceID < 2048:
                 SmartPlug = DeviceID - 1024
-                Domoticz.Debug('"%s" on smart plug ID %d' % (self.NextCommand['Command'], SmartPlug))
-                self.switchSmartPlug(Connection, SmartPlug, self.NextCommand['Command'].upper() == 'ON')
+                Domoticz.Debug('"%s" on smart plug ID %d' % (Command, SmartPlug))
+                self.switchSmartPlug(Connection, SmartPlug, Command.upper() == 'ON')
         elif DeviceID == 'systemAway':
-            Domoticz.Debug('"%s" on Away mode' % (self.NextCommand['Command']))
-            self.switchAway(Connection, self.NextCommand['Command'].upper() == 'ON')
+            Domoticz.Debug('"%s" on Away mode' % (Command))
+            self.switchAway(Connection, Command.upper() == 'ON')
         else:
-            Domoticz.Error('Command for unrecognised Device ID "%s", unit "%d"' % (DeviceID, self.NextCommand['Unit']))
+            Domoticz.Error('Command for unrecognised Device ID "%s", unit "%d"' % (DeviceID, Unit))
 
         # Force status update ASAP, to reflect any changes we have just made.
         self.WaitCount = 0
 
+    def doCommands(self, Connection, Commands):
+        Domoticz.Debug("doCommands")
+        while len(Commands) > 0:
+            c = Commands.pop(0)
 
 
 
@@ -400,6 +405,8 @@ class BasePlugin:
         Domoticz.Debug("onConnect called")
         if (Status == 0):
             Domoticz.Debug("Wiser connected successfully "+ Connection.Name)
+            if not Connection.Connected():
+                Domoticz.Debug("onConnect but not connected"+ Connection.Name)
 
             if Connection.Name == 'Wiser':  # Regular status poll
                 sendData = { 'Verb' : 'GET',
@@ -407,8 +414,11 @@ class BasePlugin:
                              'Headers' : { 'SECRET': Parameters["Mode1"] }
                 }
                 Connection.Send(sendData)
-            else:
-                self.doCommand(Connection)
+            elif self.NextCommand['Command'] != '__NONE__':
+#                self.doCommand(Connection, self.NextCommand['Command'], self.NextCommand['Unit'], self.NextCommand['Level'])
+                self.NextCommand['Command'] = '__NONE__'
+                self.doCommands(Connection, self.Commands)
+
         else:
             Domoticz.Log("Failed to connect ("+str(Status)+") to: "+Parameters["Address"]+":"+Parameters["Mode1"]+" with error: "+Description)
             
@@ -442,13 +452,25 @@ class BasePlugin:
         params = params.capitalize()
         Domoticz.Log("Action " + action + ", params: " + params)
 
-        self.NextCommand = {
+        if self.httpCmdConn.Connected():
+            Domoticz.Debug("Command Connection connected already")
+            self.doCommand(self.httpCmdConn, Command, Unit, Level)
+        elif self.httpCmdConn.Connecting():
+            Domoticz.Debug("Connection in progress, command ignored")
+        elif self.NextCommand['Command'] == '__NONE__':
+            self.NextCommand = {
+                'Command': Command,
+                'Level': Level,
+                'Unit': Unit
+            }
+
+            self.httpCmdConn.Connect()
+
+        self.Commands.append({
             'Command': Command,
             'Level': Level,
             'Unit': Unit
-            }
-
-        self.httpCmdConn.Connect()
+        })
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(Priority) + "," + Sound + "," + ImageFile)
