@@ -71,9 +71,8 @@ class BasePlugin:
         self.UpdateInterval = 60
         self.WaitCount = self.UpdateInterval / 10
         self.Units = {}
-        self.MissCount = {}
-        self.NextCommand = { 'Command': '__NONE__' }
         self.Commands = []
+        self.CmdState = 'Disconnected'
         return
 
     def getNextUnit(self):
@@ -275,27 +274,27 @@ class BasePlugin:
         try:
             sendData = { 'Verb' : 'PATCH',
                          'URL'  : '/data/domain/' + path,
-                         'Headers' : { 'SECRET': Parameters["Mode1"], "Connection": "keep-alive" },
+                         'Headers' : { 'SECRET': Parameters["Mode1"], "Connection": "keep-alive", "Accept": '*/*', 'Content-Length' : "%d"%(len(data)) },
                          'Data' : data
                 }
 
             Connection.Send(sendData)
 
         except Exception as e:
-            Domoticz.log("PATCH failed")
+            Domoticz.Log("PATCH failed " + str(e))
 
     def apiPatch2(self, Connection, path, data):
         try:
             sendData = { 'Verb' : 'PATCH',
                          'URL'  : '/data/v2/domain/' + path,
-                         'Headers' : { 'SECRET': Parameters["Mode1"], "Connection": "keep-alive" },
+                         'Headers' : { 'SECRET': Parameters["Mode1"], "Connection": "keep-alive", "Accept": '*/*', 'Content-Length' : "%d"%(len(data)) },
                          'Data' : data
                 }
 
             Connection.Send(sendData)
 
         except Exception as e:
-            Domoticz.log("PATCH failed")
+            Domoticz.Log("PATCH failed")
 
     def overrideSetpoint(self, Connection, Room, Temperature):
         payload = {
@@ -381,6 +380,7 @@ class BasePlugin:
         Domoticz.Debug("doCommands")
         while len(Commands) > 0:
             c = Commands.pop(0)
+            self.doCommand(Connection, c['Command'], c['Unit'], c['Level'])
 
 
 
@@ -389,6 +389,18 @@ class BasePlugin:
             Domoticz.Debugging(int(Parameters["Mode6"]))
             DumpConfigToLog()
             
+        if 'Mode2' in Parameters:
+            updateInterval = Parameters['Mode2']
+            if updateInterval != '':
+                if not updateInterval.isdigit():
+                    Domoticz.Error("Update interval parameter must be an integer - ignored '%s'" % updateInterval)
+                else:
+                    updateInterval = int(updateInterval)
+                    if updateInterval < 10:
+                        Domoticz.Error("Minimum update interval is 10 seconds")
+                        updateInterval = 10
+                    self.UpdateInterval = updateInterval
+
         for d in Devices:
             self.Units[Devices[d].DeviceID] = d
             
@@ -406,7 +418,7 @@ class BasePlugin:
         if (Status == 0):
             Domoticz.Debug("Wiser connected successfully "+ Connection.Name)
             if not Connection.Connected():
-                Domoticz.Debug("onConnect but not connected"+ Connection.Name)
+                Domoticz.Log("onConnect but not connected"+ Connection.Name)
 
             if Connection.Name == 'Wiser':  # Regular status poll
                 sendData = { 'Verb' : 'GET',
@@ -414,13 +426,14 @@ class BasePlugin:
                              'Headers' : { 'SECRET': Parameters["Mode1"] }
                 }
                 Connection.Send(sendData)
-            elif self.NextCommand['Command'] != '__NONE__':
-#                self.doCommand(Connection, self.NextCommand['Command'], self.NextCommand['Unit'], self.NextCommand['Level'])
-                self.NextCommand['Command'] = '__NONE__'
-                self.doCommands(Connection, self.Commands)
+            else:
+                self.CmdState = 'Connected'
+                c = self.Commands.pop(0)
+                self.doCommand(Connection, c['Command'], c['Unit'], c['Level'])
+#                self.doCommands(Connection, self.Commands)
 
         else:
-            Domoticz.Log("Failed to connect ("+str(Status)+") to: "+Parameters["Address"]+":"+Parameters["Mode1"]+" with error: "+Description)
+            Domoticz.Log("Failed to connect " + Connection.Name + " (error " + str(Status) +") to: " + Parameters["Address"] + " with error: " + Description)
             
 
     def onMessage(self, Connection, Data):
@@ -442,6 +455,9 @@ class BasePlugin:
                 self.updateDevices(wiser_info)
             else:
                 Domoticz.Debug(strData)
+
+            if Connection.Connected():
+                Connection.Disconnect()
         
     def onCommand(self, Unit, Command, Level, Hue):
         Domoticz.Debug("onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
@@ -452,31 +468,31 @@ class BasePlugin:
         params = params.capitalize()
         Domoticz.Log("Action " + action + ", params: " + params)
 
-        if self.httpCmdConn.Connected():
-            Domoticz.Debug("Command Connection connected already")
-            self.doCommand(self.httpCmdConn, Command, Unit, Level)
-        elif self.httpCmdConn.Connecting():
-            Domoticz.Debug("Connection in progress, command ignored")
-        elif self.NextCommand['Command'] == '__NONE__':
-            self.NextCommand = {
-                'Command': Command,
-                'Level': Level,
-                'Unit': Unit
-            }
-
-            self.httpCmdConn.Connect()
-
         self.Commands.append({
             'Command': Command,
             'Level': Level,
             'Unit': Unit
         })
 
+        if self.httpCmdConn.Connected():
+            Domoticz.Debug("Command Connection connected already")
+            self.doCommands(self.httpCmdConn, self.Commands)
+        elif self.httpCmdConn.Connecting():
+            Domoticz.Debug("Connection in progress")
+        elif self.CmdState != 'Connecting'and self.CmdState != 'Connected':
+            self.CmdState = 'Connecting'
+            self.httpCmdConn.Connect()
+
+
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(Priority) + "," + Sound + "," + ImageFile)
 
     def onDisconnect(self, Connection):
-        Domoticz.Debug("onDisconnect called")
+        Domoticz.Debug("onDisconnect called for " + Connection.Name)
+        if Connection.Name == 'WiserCmd':
+            self.CmdState = 'Disconnected'
+            if len(self.Commands) > 0:
+                Connection.Connect()
 
     def onHeartbeat(self):
         self.WaitCount -= 1
