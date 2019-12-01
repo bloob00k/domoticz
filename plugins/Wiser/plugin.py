@@ -39,7 +39,7 @@
                 <option label="Basic+Messages" value="126"/>
                 <option label="Connections Only" value="16"/>
                 <option label="Connections+Python" value="18"/>
-                <option label="Connections+Queue" value="144"/>
+                <option label="Connections+Queue" value="146"/>
                 <option label="All" value="-1"/>
             </options>
       </param>
@@ -274,7 +274,7 @@ class BasePlugin:
         try:
             sendData = { 'Verb' : 'PATCH',
                          'URL'  : '/data/domain/' + path,
-                         'Headers' : { 'SECRET': Parameters["Mode1"], "Connection": "keep-alive", "Accept": '*/*', 'Content-Length' : "%d"%(len(data)) },
+                         'Headers' : { 'SECRET': Parameters["Mode1"], "Accept": '*/*', 'Content-Length' : "%d"%(len(data)) },
                          'Data' : data
                 }
 
@@ -287,7 +287,7 @@ class BasePlugin:
         try:
             sendData = { 'Verb' : 'PATCH',
                          'URL'  : '/data/v2/domain/' + path,
-                         'Headers' : { 'SECRET': Parameters["Mode1"], "Connection": "keep-alive", "Accept": '*/*', 'Content-Length' : "%d"%(len(data)) },
+                         'Headers' : { 'SECRET': Parameters["Mode1"], "Accept": '*/*', 'Content-Length' : "%d"%(len(data)) },
                          'Data' : data
                 }
 
@@ -418,7 +418,7 @@ class BasePlugin:
         if (Status == 0):
             Domoticz.Debug("Wiser connected successfully "+ Connection.Name)
             if not Connection.Connected():
-                Domoticz.Log("onConnect but not connected"+ Connection.Name)
+                Domoticz.Log("onConnect but not connected "+ Connection.Name)
 
             if Connection.Name == 'Wiser':  # Regular status poll
                 sendData = { 'Verb' : 'GET',
