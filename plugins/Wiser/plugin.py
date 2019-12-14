@@ -160,13 +160,14 @@ class BasePlugin:
                 Domoticz.Log("Device %d typ is Temp+Hum but not associated with Wiser RoomStat" % Devices[Unit].ID)
                 return
 
-            humidity = 0
             for stat in RoomStats:
                 if Room['RoomStatId'] == stat['id']:
-                    humidity = stat['MeasuredHumidity']
+                    if 'MeasuredHumidity' in stat:
+                        humidity = stat['MeasuredHumidity']
+                        sValue = "%.1f;%d;0" % (Room['CalculatedTemperature'] * 0.1, humidity)
+                    else:
+                        sValue = "%.1f" % (Room['CalculatedTemperature'] * 0.1)
                     break
-
-            sValue = "%.1f;%d;0" % (Room['CalculatedTemperature'] * 0.1, humidity)
         else:
             sValue = "%.1f" % (Room['CalculatedTemperature'] * 0.1)
 
