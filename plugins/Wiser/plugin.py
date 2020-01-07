@@ -423,7 +423,7 @@ class BasePlugin:
 
             if Connection.Name == 'Wiser':  # Regular status poll
                 sendData = { 'Verb' : 'GET',
-                             'URL'  : '/data/domain/',
+                             'URL'  : '/data/v2/domain/',
                              'Headers' : { 'SECRET': Parameters["Mode1"] }
                 }
                 Connection.Send(sendData)
@@ -503,7 +503,7 @@ class BasePlugin:
             if self.httpConn.Connected():
                 Domoticz.Debug("onHeartBeat: httpConn is already connected; sending request")
                 sendData = { 'Verb' : 'GET',
-                             'URL'  : '/data/domain/',
+                             'URL'  : '/data/v2/domain/',
                              'Headers' : { 'SECRET': Parameters["Mode1"] }
                 }
                 self.httpConn.Send(sendData)
