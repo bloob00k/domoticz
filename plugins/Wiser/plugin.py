@@ -106,18 +106,19 @@ class BasePlugin:
                 self.Units[str(DevID)] = unit
                 Domoticz.Log("Created device " + r['Name'])
 
-                DevID = 256 + r['id']
+            DevID = 256 + r['id']
+            if str(DevID) not in self.Units:
                 unit = self.getNextUnit()
                 Domoticz.Device(Name=r['Name'],  Unit=unit, DeviceID = str(DevID), Type=242, Subtype=1).Create()
                 self.Units[str(DevID)] = unit
                 Domoticz.Log("Created device " + r['Name'] + ' thermostat')
 
-                DevID = 4096 + r['id']
-                if str(DevID) not in self.Units:
-                    unit = self.getNextUnit()
-                    Domoticz.Device(Name=r['Name'] + ' Demand',  Unit=unit, DeviceID = str(DevID), Type=243, Subtype=6).Create()
-                    self.Units[str(DevID)] = unit
-                    Domoticz.Log("Created device " + r['Name'] + ' Demand')
+            DevID = 4096 + r['id']
+            if str(DevID) not in self.Units:
+                unit = self.getNextUnit()
+                Domoticz.Device(Name=r['Name'] + ' Demand',  Unit=unit, DeviceID = str(DevID), Type=243, Subtype=6).Create()
+                self.Units[str(DevID)] = unit
+                Domoticz.Log("Created device " + r['Name'] + ' Demand')
 
         if 'HotWater' in info:
             for h in info['HotWater']:
@@ -509,11 +510,9 @@ class BasePlugin:
                 self.httpConn.Send(sendData)
             else:
                 self.httpConn.Connect()
-            
-
-
-            
-            
+    
+    def onDeviceRemoved(self, Unit):
+        self.Units = {k: v for k, v in self.Units.items() if v != Unit}
 
 
 global _plugin
@@ -550,6 +549,10 @@ def onDisconnect(Connection):
 def onHeartbeat():
     global _plugin
     _plugin.onHeartbeat()
+
+def onDeviceRemoved(Unit):
+    global _plugin
+    _plugin.onDeviceRemoved(Unit)
 
     # Generic helper functions
 def DumpConfigToLog():
