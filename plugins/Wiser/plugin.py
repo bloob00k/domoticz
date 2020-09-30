@@ -186,19 +186,16 @@ class BasePlugin:
             Unit = self.Units[ str(4096 + Room['id']) ]
             Devices[Unit].Update(nValue=0, sValue=sValue, TimedOut=0)
 
-
-
-
-
     def updateHotWater(self, WaterInfo):
         Unit = self.Units[ str(512 + WaterInfo['id']) ]
-
-        if WaterInfo['WaterHeatingState'] == "On":
+        
+        state = WaterInfo.get("WaterHeatingState", "Unknown")
+        if state == "On":
             nValue = 1
-        elif WaterInfo['WaterHeatingState'] == "Off":
+        elif state == "Off":
             nValue = 0
         else:
-            Domoticz.Log("WaterHeatingState '%s' for device %d is unrecognised, skipping device." % (WaterInfo['WaterHeatingState'], Devices[Unit].ID))
+            Domoticz.Log("WaterHeatingState '%s' for device %d is unrecognised, skipping device." % (state, Devices[Unit].ID))
             return
 
         if Devices[Unit].nValue != nValue:
@@ -206,16 +203,16 @@ class BasePlugin:
         else:
             Devices[Unit].Touch()
 
-
     def updateSmartPlug(self, Plug):
         Unit = self.Units[ str(1024 + Plug['id']) ]
-
-        if Plug['OutputState'] == "On":
+        
+        state = Plug.get("OutputState", "Unknown")
+        if state == "On":
             nValue = 1
-        elif Plug['OutputState'] == "Off":
+        elif state == "Off":
             nValue = 0
         else:
-            Domoticz.Log("SmartPlug state '%s' for device %d is unrecognised, skipping device." % (Plug['OutputState'], Devices[Unit].ID))
+            Domoticz.Log("SmartPlug state '%s' for device %d is unrecognised, skipping device." % (state, Devices[Unit].ID))
             return
 
         if Devices[Unit].nValue != nValue:
@@ -226,12 +223,13 @@ class BasePlugin:
     def updateBoiler(self, Boiler):
         Unit = self.Units[ str(2048 + Boiler['id']) ]
 
-        if Boiler['HeatingRelayState'] == "On":
+        state = Boiler.get("HeatingRelayState", "Unknown")
+        if state == "On":
             nValue = 1
-        elif Boiler['HeatingRelayState'] == "Off":
+        elif state == "Off":
             nValue = 0
         else:
-            Domoticz.Log("HeatingChannel state '%s' for device %d is unrecognised, skipping device." % (Boiler['OutputState'], Devices[Unit].ID))
+            Domoticz.Log("HeatingChannel state '%s' for device %d is unrecognised, skipping device." % (state, Devices[Unit].ID))
             return
 
         if Devices[Unit].nValue != nValue:
