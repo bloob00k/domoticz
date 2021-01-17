@@ -151,7 +151,7 @@ class BasePlugin:
                     Domoticz.Log("Created device " + b['Name'])
 
     def updateRoom(self, Room, RoomStats):
-        sValue = ""
+        sValue = None
 
         Unit = self.Units[ str(0 + Room['id']) ]
 
@@ -161,19 +161,20 @@ class BasePlugin:
                 Domoticz.Log("Device %d typ is Temp+Hum but not associated with Wiser RoomStat" % Devices[Unit].ID)
                 return
 
-            for stat in RoomStats:
-                if Room['RoomStatId'] == stat['id']:
-                    if 'MeasuredHumidity' in stat:
-                        humidity = stat['MeasuredHumidity']
-                        sValue = "%.1f;%d;0" % (Room['CalculatedTemperature'] * 0.1, humidity)
-                    else:
-                        sValue = "%.1f" % (Room['CalculatedTemperature'] * 0.1)
-                    break
+            if RoomStats is not None:
+                for stat in RoomStats:
+                    if Room['RoomStatId'] == stat['id']:
+                        if 'MeasuredHumidity' in stat:
+                            humidity = stat['MeasuredHumidity']
+                            sValue = "%.1f;%d;0" % (Room['CalculatedTemperature'] * 0.1, humidity)
+                        else:
+                            sValue = "%.1f" % (Room['CalculatedTemperature'] * 0.1)
+                        break
         else:
             sValue = "%.1f" % (Room['CalculatedTemperature'] * 0.1)
 
         # If stat is unreachable we get -32768, ignore
-        if Room['CalculatedTemperature'] > 0:
+        if sValue and Room['CalculatedTemperature'] > 0:
             Devices[Unit].Update(nValue=0, sValue=sValue, TimedOut = 0)
 
         # Now the thermostat
@@ -255,8 +256,9 @@ class BasePlugin:
         self.updateSystem(info['System'])
 
         if 'Room' in info:
+            RoomStats = info.get('RoomStat', None)
             for r in info['Room']:
-                self.updateRoom(r, info['RoomStat'])
+                self.updateRoom(r, RoomStats)
 
         if 'HotWater' in info:
             for h in info['HotWater']:
