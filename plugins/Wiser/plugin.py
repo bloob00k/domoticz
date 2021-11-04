@@ -444,6 +444,11 @@ class BasePlugin:
 
         # DumpHTTPResponseToLog(Data)
         
+        if 'Status' not in Data:
+            Domoticz.Log("Unexpected message received")
+            DumpHTTPResponseToLog(Data)
+            return
+
         Status = int(Data["Status"])
 
         if Status != 200:
