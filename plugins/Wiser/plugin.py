@@ -103,22 +103,31 @@ class BasePlugin:
 
                 unit = self.getNextUnit()
                 Domoticz.Device(Name=r['Name'],  Unit=unit, DeviceID = str(DevID), TypeName=typeName).Create()
-                self.Units[str(DevID)] = unit
-                Domoticz.Log("Created device " + r['Name'])
+                if unit not in Devices:
+                    Domoticz.Log("Device creation failed '" + r['Name'] + "' " + typeName )
+                else:
+                    self.Units[str(DevID)] = unit
+                    Domoticz.Log("Created device " + r['Name'])
 
             DevID = 256 + r['id']
             if str(DevID) not in self.Units:
                 unit = self.getNextUnit()
                 Domoticz.Device(Name=r['Name'],  Unit=unit, DeviceID = str(DevID), Type=242, Subtype=1).Create()
-                self.Units[str(DevID)] = unit
-                Domoticz.Log("Created device " + r['Name'] + ' thermostat')
+                if unit not in Devices:
+                    Domoticz.Log("Device creation failed '" + r['Name'] + "' thermostat " + str(DevID) )
+                else:
+                    self.Units[str(DevID)] = unit
+                    Domoticz.Log("Created device " + r['Name'] + ' thermostat')
 
             DevID = 4096 + r['id']
             if str(DevID) not in self.Units:
                 unit = self.getNextUnit()
                 Domoticz.Device(Name=r['Name'] + ' Demand',  Unit=unit, DeviceID = str(DevID), Type=243, Subtype=6).Create()
-                self.Units[str(DevID)] = unit
-                Domoticz.Log("Created device " + r['Name'] + ' Demand')
+                if unit not in Devices:
+                    Domoticz.Log("Device creation failed '" + r['Name'] + "' Demand " + str(DevID) )
+                else:
+                    self.Units[str(DevID)] = unit
+                    Domoticz.Log("Created device " + r['Name'] + ' Demand')
 
         if 'HotWater' in info:
             for h in info['HotWater']:
@@ -137,8 +146,23 @@ class BasePlugin:
                     # All images available by JSON API call "/json.htm?type=custom_light_icons"
                     unit = self.getNextUnit()
                     Domoticz.Device(Name=p['Name'], Unit=unit, DeviceID = str(DevID), TypeName = "Switch", Subtype = 0, Image = 1).Create()
-                    self.Units[str(DevID)] = unit
-                    Domoticz.Log("Created device " + p['Name'])
+                    if unit not in Devices:
+                        Domoticz.Log("Device creation failed '" + p['Name'] + "' " + str(DevID) )
+                    else:
+                        self.Units[str(DevID)] = unit
+                        Domoticz.Log("Created device " + p['Name'])
+
+                DevID = str(DevID) + '-U'
+                if DevID not in self.Units:
+                    unit = self.getNextUnit()
+                    name = p['Name'] + ' consumption'
+                    Domoticz.Device(Name=name, Unit=unit, DeviceID = str(DevID), TypeName = "kWh").Create()
+                    if unit not in Devices:
+                        Domoticz.Log("Device creation failed '" + name + "' " + str(DevID) )
+                    else:
+                        self.Units[str(DevID)] = unit
+                        Domoticz.Log("Created device " + name + " " + str(self.Units[str(DevID)]) )
+
 
         if 'HeatingChannel' in info:
             for b in info['HeatingChannel']:
@@ -153,7 +177,11 @@ class BasePlugin:
     def updateRoom(self, Room, RoomStats):
         sValue = None
 
-        Unit = self.Units[ str(0 + Room['id']) ]
+        unitIdx = str(0 + Room['id'])
+        if unitIdx not in self.Units:
+                return
+
+        Unit = self.Units[ unitIdx ]
 
         # Temp + Hum
         if Devices[Unit].Type == 82:
@@ -205,8 +233,14 @@ class BasePlugin:
             Devices[Unit].Touch()
 
     def updateSmartPlug(self, Plug):
-        Unit = self.Units[ str(1024 + Plug['id']) ]
-        
+        DevID = str(1024 + Plug['id'])
+        if DevID not in self.Units:
+            return
+
+        Unit = self.Units[DevID]
+        if Unit not in Devices:
+            return
+
         state = Plug.get("OutputState", "Unknown")
         if state == "On":
             nValue = 1
@@ -220,6 +254,33 @@ class BasePlugin:
             Devices[Unit].Update(nValue=nValue, sValue='', TimedOut=0)
         else:
             Devices[Unit].Touch()
+
+        # Now the consumption device
+        DevID = str(1024 + Plug['id']) + '-U'
+        if DevID in self.Units:
+            Unit = self.Units[DevID]
+
+            nValue = 0
+            sValue = ''
+
+            demand = Plug.get("InstantaneousDemand")
+            consumption = Plug.get("CurrentSummationDelivered")
+
+            if demand is not None:
+                sValue = str(demand)
+                if consumption is not None:
+                    baseConsumption = Devices[Unit].nValue
+                    if baseConsumption == 0 or baseConsumption > consumption:
+                        nValue = consumption
+                        consumption = 0
+                    else:
+                        # Preserve the original value
+                        nValue = baseConsumption
+                        consumption = consumption - baseConsumption
+                    sValue = sValue + ';' + str(consumption)
+
+            Devices[Unit].Update(nValue=nValue, sValue=sValue, TimedOut=0)
+
 
     def updateBoiler(self, Boiler):
         Unit = self.Units[ str(2048 + Boiler['id']) ]
