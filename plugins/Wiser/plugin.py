@@ -23,7 +23,11 @@
                 boiler is actually on is a function of how hot the water is in the circuit, and if there are any other demands on the boiler.</li>
             <li>Demand - Reports the heating demand in the room (percentage)</li>
             <li>SmartPlug - Show and control on/off state of a smart plug</li>
+            <li>Consumption - Reports the current power draw from a smart plug, and the total energy usage per hour</li>
         </ul>
+        <h3>Battery Levels</h3>
+        <p>The battery level is reported for room thermostats.  For rooms which only have a single TRV, its battery level will be reported as the level for that room.
+        If there is more than one TRV in the room, and no room thermostat, then no battery level is reported.</p>
         <h3>Configuration</h3>
         Configuration options...
     </description>
@@ -176,6 +180,7 @@ class BasePlugin:
 
     def updateRoom(self, Room, RoomStats, WiserDevices):
         sValue = None
+        level = None
         batteryLevel = 255 # Means no battery device
 
         unitIdx = str(0 + Room['id'])
@@ -202,21 +207,23 @@ class BasePlugin:
                             sValue = "%.1f" % (Room['CalculatedTemperature'] * 0.1)
 
                         level = WiserDevs[stat['id']].get('BatteryLevel', None)
-                        if level == 'Normal':
-                            batteryLevel = 100
-                        elif level == 'TwoThirds':
-                            batteryLevel = 66
-                        elif level == 'OneThird':
-                            batteryLevel = 33
-                        elif level == 'Low':
-                            batteryLevel = 20
-
                         break
         else:
             sValue = "%.1f" % (Room['CalculatedTemperature'] * 0.1)
+            if 'SmartValveIds' in Room and len(Room['SmartValveIds']) == 1:
+                level = WiserDevs[Room['SmartValveIds'][0]].get('BatteryLevel', None)
 
         # If stat is unreachable we get -32768, ignore
         if sValue and Room['CalculatedTemperature'] > 0:
+            if level == 'Normal':
+                batteryLevel = 100
+            elif level == 'TwoThirds':
+                batteryLevel = 66
+            elif level == 'OneThird':
+                batteryLevel = 33
+            elif level == 'Low':
+                batteryLevel = 20
+
             Devices[Unit].Update(nValue=0, sValue=sValue, TimedOut = 0, BatteryLevel=batteryLevel)
 
         # Now the thermostat
