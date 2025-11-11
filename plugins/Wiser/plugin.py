@@ -174,14 +174,17 @@ class BasePlugin:
                     self.Units[str(DevID)] = unit
                     Domoticz.Log("Created device " + b['Name'])
 
-    def updateRoom(self, Room, RoomStats):
+    def updateRoom(self, Room, RoomStats, WiserDevices):
         sValue = None
+        batteryLevel = 255 # Means no battery device
 
         unitIdx = str(0 + Room['id'])
         if unitIdx not in self.Units:
                 return
 
         Unit = self.Units[ unitIdx ]
+
+        WiserDevs = {item["id"]: item for item in WiserDevices if "id" in item}
 
         # Temp + Hum
         if Devices[Unit].Type == 82:
@@ -197,13 +200,24 @@ class BasePlugin:
                             sValue = "%.1f;%d;0" % (Room['CalculatedTemperature'] * 0.1, humidity)
                         else:
                             sValue = "%.1f" % (Room['CalculatedTemperature'] * 0.1)
+
+                        level = WiserDevs[stat['id']].get('BatteryLevel', None)
+                        if level == 'Normal':
+                            batteryLevel = 100
+                        elif level == 'TwoThirds':
+                            batteryLevel = 66
+                        elif level == 'OneThird':
+                            batteryLevel = 33
+                        elif level == 'Low':
+                            batteryLevel = 20
+
                         break
         else:
             sValue = "%.1f" % (Room['CalculatedTemperature'] * 0.1)
 
         # If stat is unreachable we get -32768, ignore
         if sValue and Room['CalculatedTemperature'] > 0:
-            Devices[Unit].Update(nValue=0, sValue=sValue, TimedOut = 0)
+            Devices[Unit].Update(nValue=0, sValue=sValue, TimedOut = 0, BatteryLevel=batteryLevel)
 
         # Now the thermostat
         sValue = "%.1f" % (Room['CurrentSetPoint'] * 0.1)
@@ -318,8 +332,9 @@ class BasePlugin:
 
         if 'Room' in info:
             RoomStats = info.get('RoomStat', None)
+            Devices = info.get('Device', None)
             for r in info['Room']:
-                self.updateRoom(r, RoomStats)
+                self.updateRoom(r, RoomStats, Devices)
 
         if 'HotWater' in info:
             for h in info['HotWater']:
